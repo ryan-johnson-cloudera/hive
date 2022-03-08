@@ -97,11 +97,12 @@ public class TestHyperLogLogDense {
     // Create the histogram bins for an equi-height histogram
     int numBins = 10;
     long tupsPerBucket = lenStream / numBins;
-    double[] buckets = new double[numBins];
+    double[] buckets = new double[numBins + 1];
     double q = 1.0 / numBins;
     for (int i = 0; i < numBins; i++) {
       buckets[i] = sketch.getQuantile(q * i);
     }
+    buckets[numBins] = sketch.getMaxValue();
 
     // Confirm that the size streamed is correct
     double threshold = size > 40000 ? longRangeTolerance : shortRangeTolerance;
@@ -225,7 +226,7 @@ public class TestHyperLogLogDense {
     }
     int size = 1000;
     System.out.println("OUTPUT");
-    System.out.println(sketch.singleSelectivity(990) * size);
+    System.out.println(sketch.pointSelectivity(990) * size);
     System.out.println(sketch.rangedSelectivity(200, 550) * size);
     System.out.println(sketch.greaterThanSelectivity(400) * size);
     System.out.println(sketch.lessThanSelectivity(200) * size);
@@ -243,10 +244,21 @@ public class TestHyperLogLogDense {
       sketch.put(i);
     }
     System.out.println("OUTPUT");
-    System.out.println(sketch.singleSelectivity(10) * size);
+    System.out.println(sketch.pointSelectivity(10) * size);
     System.out.println(sketch.rangedSelectivity(200, 550) * size);
     System.out.println(sketch.greaterThanSelectivity(400) * size);
     System.out.println(sketch.lessThanSelectivity(400) * size);
   }
 
+  @Test
+  public void binnedHistogramSimple() {
+    KLLBinnedHistogram sketch = new KLLBinnedHistogram(200);
+    for (int i = 0; i < 1000; i++) {
+      sketch.put(i);
+    }
+    sketch.computeHistogram(10);
+    System.out.println("OUTPUT");
+    System.out.println(sketch.rangedSelectivity(400, 900) * 1000);
+
+  }
 }
