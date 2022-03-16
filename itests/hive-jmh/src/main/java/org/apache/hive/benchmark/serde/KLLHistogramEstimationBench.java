@@ -37,7 +37,7 @@ import org.apache.hadoop.hive.common.ndv.hll.KLLBinnedHistogram;
  * java -cp target/benchmarks.jar org.apache.hive.benchmark.serde.HyperLogLogBench
  */
 @State(Scope.Benchmark)
-public class KLLBench {
+public class KLLHistogramEstimationBench {
   public static final int DEFAULT_ITER_TIME = 1000000;
 
   @BenchmarkMode(Mode.AverageTime)
@@ -224,7 +224,7 @@ public class KLLBench {
 
 
   public static void main(String[] args) throws RunnerException {
-    Options opt = new OptionsBuilder().include(".*" + KLLBench.class.getSimpleName() + ".*").build();
+    Options opt = new OptionsBuilder().include(".*" + KLLHistogramEstimationBench.class.getSimpleName() + ".*").build();
     new Runner(opt).run();
   }
 }

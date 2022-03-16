@@ -1,3 +1,21 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.hadoop.hive.common.ndv.hll;
 
 import org.apache.datasketches.kll.KllFloatsSketch;
@@ -24,6 +42,13 @@ public class KLLBinnedHistogram {
   }
 
   public void computeHistogram(int numBins) {
+
+    if (numBins == -1) {
+      numBins = (int)Math.ceil((sketch.getMaxValue() - sketch.getMinValue()) /
+          (2 * (sketch.getQuantile(0.75) - sketch.getQuantile(0.25)) / Math. cbrt(lenStream)));
+    }
+
+
     tupsPerBucket = lenStream / numBins;
     buckets = new double[numBins + 1];
     double q = 1.0 / numBins;
@@ -39,6 +64,9 @@ public class KLLBinnedHistogram {
     boolean betweenBoundaries = false;
     double width;
     double percentageBucket;
+    if (val1 > sketch.getMaxValue() || val2 < sketch.getMinValue()) {
+      return 0;
+    }
     while (true) {
       if (!betweenBoundaries && val1 < buckets[bin] && (val2 < buckets[bin] || bin == buckets.length - 1)) {
         width = buckets[bin] - buckets[bin - 1];
@@ -70,6 +98,9 @@ public class KLLBinnedHistogram {
     boolean betweenBoundaries = false;
     double width;
     double percentageBucket;
+    if (val > sketch.getMaxValue()) {
+      return 0;
+    }
     while (bin < buckets.length) {
       if (!betweenBoundaries && val < buckets[bin]) {
         width = buckets[bin] - buckets[bin - 1];
@@ -89,6 +120,9 @@ public class KLLBinnedHistogram {
     int bin = 1;
     double width;
     double percentageBucket;
+    if (val < sketch.getMinValue()) {
+      return 0;
+    }
     while (true) {
       if (val < buckets[bin] || bin == buckets.length - 1) {
         width = buckets[bin] - buckets[bin - 1];
