@@ -30,14 +30,13 @@ import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
-import org.apache.hadoop.hive.common.ndv.hll.KLLHistogram;
 import org.apache.hadoop.hive.common.ndv.hll.KLLBinnedHistogram;
 
 /**
  * java -cp target/benchmarks.jar org.apache.hive.benchmark.serde.HyperLogLogBench
  */
 @State(Scope.Benchmark)
-public class KLLBench {
+public class KLLHistogramComputationBench {
   public static final int DEFAULT_ITER_TIME = 1000000;
 
   @BenchmarkMode(Mode.AverageTime)
@@ -59,86 +58,57 @@ public class KLLBench {
 
   public abstract static class SizeOptimizedSparseStressN extends Abstract {
 
-    private KLLHistogram kll;
     private KLLBinnedHistogram kllBinned;
     private final int stressN;
     private final TestData dataSet;
-    private final boolean binned;
+    private final int numBuckets;
 
-    public SizeOptimizedSparseStressN(int stressN,TestData dataSet, boolean binned) {
+    public SizeOptimizedSparseStressN(int stressN ,TestData dataSet, int numBuckets) {
       this.stressN = stressN;
       this.dataSet = dataSet;
-      this.binned = binned;
+      this.numBuckets = numBuckets;
     }
 
     @Override
     public void setup() {
-      kll = new KLLHistogram(200);
       kllBinned = new KLLBinnedHistogram(200);
       if (dataSet == TestData.UNIFORM) {
         for (int i = 0; i < stressN; i++) {
-          kll.put(i);
           kllBinned.put(i);
         }
-        kllBinned.computeHistogram(100);
       } else if (dataSet == TestData.SKEWED) {
         int i = 0;
         while (kllBinned.lenStream() < stressN) {
           if (kllBinned.lenStream() < stressN / 100) {
             for (int j = 0; j < 20; j++) {
               kllBinned.put(i);
-              kll.put(i);
             }
           } else if (kllBinned.lenStream() < (stressN / 100) * 3) {
             for (int j = 0; j < 10; j++) {
               kllBinned.put(i);
-              kll.put(i);
             }
           } else if (kllBinned.lenStream() < (stressN / 100) * 5) {
             for (int j = 0; j < 5; j++) {
               kllBinned.put(i);
-              kll.put(i);
             }
           } else {
             kllBinned.put(i);
-            kll.put(i);
           }
           i += 1;
         }
-        kllBinned.computeHistogram(-1);
       } else if (dataSet == TestData.RANDOM) {
         Random rand = new Random(stressN);
         for (int i = 0; i < stressN; i++) {
-          kll.put(rand.nextInt(stressN));
           kllBinned.put(i);
         }
-        kllBinned.computeHistogram(-1);
       }
 
     }
 
     @Override
     public void bench() {
-      if (binned) {
-        for (int i = 1; i < stressN; i += 5) {
-          kllBinned.rangedSelectivity(0, i);
-        }
-        for (int i = stressN / 2 + 1; i < stressN; i += 5) {
-          kllBinned.rangedSelectivity(stressN / 2, i);
-        }
-        for (int i = 0; i < stressN; i += stressN * 0.01) {
-          kllBinned.rangedSelectivity(i, (float) (i + stressN * 0.01));
-        }
-      } else {
-        for (int i = 1; i < stressN; i += 5) {
-          kll.rangedSelectivity(0, i);
-        }
-        for (int i = stressN / 2 + 1; i < stressN; i += 5) {
-          kll.rangedSelectivity(stressN / 2, i);
-        }
-        for (int i = 0; i < stressN; i += stressN * 0.01) {
-          kll.rangedSelectivity(i, (float) (i + stressN * 0.01));
-        }
+      for (int i = 0; i < 1000; i ++) {
+        kllBinned.computeHistogram(numBuckets);
       }
     }
   }
@@ -149,82 +119,63 @@ public class KLLBench {
     RANDOM
   }
 
-  public static class KLLHistogramBigDS1 extends SizeOptimizedSparseStressN {
-    public KLLHistogramBigDS1() {
-      super(1000000, TestData.UNIFORM, false);
+  public static class HistogramComputationBig1 extends SizeOptimizedSparseStressN {
+    public HistogramComputationBig1() {
+      super(1000000, TestData.UNIFORM, -1);
     }
   }
 
-  public static class KLLHistogramSmallDS1 extends SizeOptimizedSparseStressN {
-    public KLLHistogramSmallDS1() {
-      super(50000, TestData.UNIFORM, false);
+  public static class HistogramComputationSmall1 extends SizeOptimizedSparseStressN {
+    public HistogramComputationSmall1() {
+      super(1000, TestData.UNIFORM, -1);
     }
   }
 
-  public static class KLLHistogramBigDS2 extends SizeOptimizedSparseStressN {
-    public KLLHistogramBigDS2() {
-      super(1000000, TestData.SKEWED, false);
+  public static class HistogramComputationBig2 extends SizeOptimizedSparseStressN {
+    public HistogramComputationBig2() {
+      super(1000000, TestData.SKEWED, -1);
     }
   }
 
-  public static class KLLHistogramSmallDS2 extends SizeOptimizedSparseStressN {
-    public KLLHistogramSmallDS2() {
-      super(50000, TestData.SKEWED, false);
+  public static class HistogramComputationSmall2 extends SizeOptimizedSparseStressN {
+    public HistogramComputationSmall2() {
+      super(1000, TestData.SKEWED, -1);
     }
   }
 
-  public static class KLLHistogramBigDS3 extends SizeOptimizedSparseStressN {
-    public KLLHistogramBigDS3() {
-      super(1000000, TestData.RANDOM, false);
+  public static class HistogramComputationBig3 extends SizeOptimizedSparseStressN {
+    public HistogramComputationBig3() {
+      super(1000000, TestData.RANDOM, -1);
     }
   }
 
-  public static class KLLHistogramSmallDS3 extends SizeOptimizedSparseStressN {
-    public KLLHistogramSmallDS3() {
-      super(50000, TestData.RANDOM, false);
+  public static class HistogramComputationSmall3 extends SizeOptimizedSparseStressN {
+    public HistogramComputationSmall3() {
+      super(1000, TestData.RANDOM, -1);
     }
   }
 
-
-  public static class BinnedKLLHistogramBigDS1 extends SizeOptimizedSparseStressN {
-    public BinnedKLLHistogramBigDS1() {
-      super(1000000, TestData.UNIFORM, true);
+  public static class HistogramComputationBucketsBig extends SizeOptimizedSparseStressN {
+    public HistogramComputationBucketsBig() {
+      super(1000000, TestData.UNIFORM, 1000);
     }
   }
 
-  public static class BinnedKLLHistogramSmallDS1 extends SizeOptimizedSparseStressN {
-    public BinnedKLLHistogramSmallDS1() {
-      super(50000, TestData.UNIFORM, true);
+  public static class HistogramComputationBucketsMed extends SizeOptimizedSparseStressN {
+    public HistogramComputationBucketsMed() {
+      super(1000000, TestData.UNIFORM, 500);
     }
   }
 
-  public static class BinnedKLLHistogramBigDS2 extends SizeOptimizedSparseStressN {
-    public BinnedKLLHistogramBigDS2() {
-      super(1000000, TestData.SKEWED, true);
-    }
-  }
-
-  public static class BinnedKLLHistogramSmallDS2 extends SizeOptimizedSparseStressN {
-    public BinnedKLLHistogramSmallDS2() {
-      super(50000,  TestData.SKEWED, true);
-    }
-  }
-
-  public static class BinnedKLLHistogramBigDS3 extends SizeOptimizedSparseStressN {
-    public BinnedKLLHistogramBigDS3() {
-      super(1000000, TestData.RANDOM, true);
-    }
-  }
-
-  public static class BinnedKLLHistogramSmallDS3 extends SizeOptimizedSparseStressN {
-    public BinnedKLLHistogramSmallDS3() {
-      super(50000, TestData.RANDOM, true);
+  public static class HistogramComputationBucketsSmall extends SizeOptimizedSparseStressN {
+    public HistogramComputationBucketsSmall() {
+      super(1000000, TestData.UNIFORM, 100);
     }
   }
 
 
   public static void main(String[] args) throws RunnerException {
-    Options opt = new OptionsBuilder().include(".*" + KLLBench.class.getSimpleName() + ".*").build();
+    Options opt = new OptionsBuilder().include(".*" + KLLHistogramComputationBench.class.getSimpleName() + ".*").build();
     new Runner(opt).run();
   }
 }
