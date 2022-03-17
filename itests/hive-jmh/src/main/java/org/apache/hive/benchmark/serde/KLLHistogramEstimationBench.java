@@ -80,7 +80,6 @@ public class KLLHistogramEstimationBench {
           kll.put(i);
           kllBinned.put(i);
         }
-        kllBinned.computeHistogram(100);
       } else if (dataSet == TestData.SKEWED) {
         int i = 0;
         while (kllBinned.lenStream() < stressN) {
@@ -105,40 +104,44 @@ public class KLLHistogramEstimationBench {
           }
           i += 1;
         }
-        kllBinned.computeHistogram(-1);
       } else if (dataSet == TestData.RANDOM) {
         Random rand = new Random(stressN);
         for (int i = 0; i < stressN; i++) {
           kll.put(rand.nextInt(stressN));
           kllBinned.put(i);
         }
-        kllBinned.computeHistogram(-1);
       }
-
+      kllBinned.computeHistogram(1000);
     }
 
     @Override
     public void bench() {
       if (binned) {
-        for (int i = 1; i < stressN; i += 5) {
-          kllBinned.rangedSelectivity(0, i);
-        }
-        for (int i = stressN / 2 + 1; i < stressN; i += 5) {
-          kllBinned.rangedSelectivity(stressN / 2, i);
-        }
-        for (int i = 0; i < stressN; i += stressN * 0.01) {
-          kllBinned.rangedSelectivity(i, (float) (i + stressN * 0.01));
+//        for (int i = 1; i < stressN; i += 5) {
+//          kllBinned.rangedSelectivity(0, i);
+//        }
+//        for (int i = stressN / 2 + 1; i < stressN; i += 5) {
+//          kllBinned.rangedSelectivity(stressN / 2, i);
+//        }
+//        for (int i = 0; i < stressN; i += stressN * 0.01) {
+//          kllBinned.rangedSelectivity(i, (float) (i + stressN * 0.01));
+//        }
+        for (int i = 1; i < 1000000; i += 1) {
+          kllBinned.rangedSelectivity(0, stressN);
         }
       } else {
-        for (int i = 1; i < stressN; i += 5) {
-          kll.rangedSelectivity(0, i);
+        for (int i = 1; i < 1000000; i += 1) {
+          kllBinned.rangedSelectivity(0, stressN);
         }
-        for (int i = stressN / 2 + 1; i < stressN; i += 5) {
-          kll.rangedSelectivity(stressN / 2, i);
-        }
-        for (int i = 0; i < stressN; i += stressN * 0.01) {
-          kll.rangedSelectivity(i, (float) (i + stressN * 0.01));
-        }
+//        for (int i = 1; i < stressN; i += 5) {
+//          kll.rangedSelectivity(0, i);
+//        }
+//        for (int i = stressN / 2 + 1; i < stressN; i += 5) {
+//          kll.rangedSelectivity(stressN / 2, i);
+//        }
+//        for (int i = 0; i < stressN; i += stressN * 0.01) {
+//          kll.rangedSelectivity(i, (float) (i + stressN * 0.01));
+//        }
       }
     }
   }
