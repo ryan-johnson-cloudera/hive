@@ -186,7 +186,7 @@ public final class ShowUtils {
               "" + timestampStats.getNumDVs(), "", "", "", "", convertToString(timestampStats.getBitVectors()), ""));
         }
       } else {
-        values.addAll(Lists.newArrayList("", "", "", "", "", "", "", "", ""));
+        values.addAll(Lists.newArrayList("", "", "", "", "", "", "", "", "", ""));
       }
     }
 
