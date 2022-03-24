@@ -718,7 +718,7 @@ public class StatObjectConverter {
       }
       longStats.setNumDVs(MetastoreDirectSqlUtils.extractSqlLong(dist));
       longStats.setBitVectors(getBitVector(MetastoreDirectSqlUtils.extractSqlBlob(bitVector)));
-      longStats.setHistogram((MetastoreDirectSqlUtils.extractSqlBlob(histogram)));
+      longStats.setHistogram(getHistogram(MetastoreDirectSqlUtils.extractSqlBlob(histogram)));
       data.setLongStats(longStats);
     } else if (colType.equals("double") || colType.equals("float")) {
       DoubleColumnStatsDataInspector doubleStats = new DoubleColumnStatsDataInspector();
@@ -731,7 +731,7 @@ public class StatObjectConverter {
       }
       doubleStats.setNumDVs(MetastoreDirectSqlUtils.extractSqlLong(dist));
       doubleStats.setBitVectors(getBitVector(MetastoreDirectSqlUtils.extractSqlBlob(bitVector)));
-      doubleStats.setHistogram((MetastoreDirectSqlUtils.extractSqlBlob(histogram)));
+      doubleStats.setHistogram(getHistogram(MetastoreDirectSqlUtils.extractSqlBlob(histogram)));
       data.setDoubleStats(doubleStats);
     } else if (colType.startsWith("decimal")) {
       DecimalColumnStatsDataInspector decimalStats = new DecimalColumnStatsDataInspector();
@@ -744,7 +744,7 @@ public class StatObjectConverter {
       }
       decimalStats.setNumDVs(MetastoreDirectSqlUtils.extractSqlLong(dist));
       decimalStats.setBitVectors(getBitVector(MetastoreDirectSqlUtils.extractSqlBlob(bitVector)));
-      decimalStats.setHistogram((MetastoreDirectSqlUtils.extractSqlBlob(histogram)));
+      decimalStats.setHistogram(getHistogram(MetastoreDirectSqlUtils.extractSqlBlob(histogram)));
       data.setDecimalStats(decimalStats);
     } else if (colType.equals("date")) {
       DateColumnStatsDataInspector dateStats = new DateColumnStatsDataInspector();
