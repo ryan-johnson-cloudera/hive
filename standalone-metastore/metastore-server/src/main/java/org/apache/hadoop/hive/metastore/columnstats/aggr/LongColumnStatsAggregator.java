@@ -57,8 +57,8 @@ public class LongColumnStatsAggregator extends ColumnStatsAggregator implements
     boolean doAllPartitionContainStats = partNames.size() == colStatsWithSourceInfo.size();
     NumDistinctValueEstimator ndvEstimator = null;
     HistogramEstimator histogramEstimator = null;
-    boolean isNDVEstimatorMergeable = true;
-    boolean isHistogramEstimatorMergeable = true;
+    boolean areAllNDVEstimatorsMergeable = true;
+    boolean areAllHistogramEstimatorsMergeable = true;
     for (ColStatsObjWithSourceInfo csp : colStatsWithSourceInfo) {
       ColumnStatisticsObj cso = csp.getColStatsObj();
       if (statsObj == null) {
@@ -70,42 +70,44 @@ public class LongColumnStatsAggregator extends ColumnStatsAggregator implements
             doAllPartitionContainStats);
       }
       LongColumnStatsDataInspector longColumnStatsData = longInspectorFromStats(cso);
+
+      // check if we can merge NDV estimators
       if (longColumnStatsData.getNdvEstimator() == null) {
-        isNDVEstimatorMergeable = false;
-      } else if (isNDVEstimatorMergeable) {
+        areAllNDVEstimatorsMergeable = false;
+      } else if (areAllNDVEstimatorsMergeable) {
         NumDistinctValueEstimator estimator = longColumnStatsData.getNdvEstimator();
         if (ndvEstimator == null) {
           ndvEstimator = estimator;
         } else {
           if (!ndvEstimator.canMerge(estimator)) {
-            isNDVEstimatorMergeable = false;
+            areAllNDVEstimatorsMergeable = false;
           }
         }
       }
       // check if we can merge histogram estimators
-      if (longColumnStatsData.getHistogramEstimator() == null) {
-        isHistogramEstimatorMergeable = false;
-      } else if (isHistogramEstimatorMergeable) {
+      if (areAllHistogramEstimatorsMergeable) {
         HistogramEstimator estimator = longColumnStatsData.getHistogramEstimator();
         if (histogramEstimator == null) {
           histogramEstimator = estimator;
         } else {
-          if (!histogramEstimator.canMerge(estimator)) {
-            isHistogramEstimatorMergeable = false;
+          // null histogram can happen when there are only null values
+          if (estimator != null && !histogramEstimator.canMerge(estimator)) {
+            areAllHistogramEstimatorsMergeable = false;
           }
         }
       }
     }
-    if (ndvEstimator != null) {
+    if (areAllNDVEstimatorsMergeable && ndvEstimator != null) {
       ndvEstimator = NumDistinctValueEstimatorFactory
           .getEmptyNumDistinctValueEstimator(ndvEstimator);
     }
-    LOG.debug("all of the bit vectors can merge for {} is {}", colName, ndvEstimator != null);
-    if (histogramEstimator != null) {
+    LOG.debug("all of the bit vectors can merge for {} is {}", colName, areAllNDVEstimatorsMergeable);
+    if (areAllHistogramEstimatorsMergeable && histogramEstimator != null) {
       histogramEstimator = HistogramEstimatorFactory
           .getEmptyHistogramEstimator(histogramEstimator);
     }
-    LOG.debug("all histograms can merge for {} is {}", colName, histogramEstimator != null);
+    LOG.debug("all histograms can merge for {} is {}", colName, areAllHistogramEstimatorsMergeable);
+
     ColumnStatisticsData columnStatisticsData = new ColumnStatisticsData();
     if (doAllPartitionContainStats || colStatsWithSourceInfo.size() < 2) {
       LongColumnStatsDataInspector aggregateData = null;
@@ -118,8 +120,12 @@ public class LongColumnStatsAggregator extends ColumnStatsAggregator implements
         lowerBound = Math.max(lowerBound, newData.getNumDVs());
         higherBound += newData.getNumDVs();
         densityAvgSum += (newData.getHighValue() - newData.getLowValue()) / (float) newData.getNumDVs();
-        if (ndvEstimator != null) {
+        if (areAllNDVEstimatorsMergeable && ndvEstimator != null) {
           ndvEstimator.mergeEstimators(newData.getNdvEstimator());
+        }
+        if (areAllHistogramEstimatorsMergeable
+            && histogramEstimator != null && newData.getHistogramEstimator() != null) {
+          histogramEstimator.mergeEstimators(newData.getHistogramEstimator());
         }
         if (aggregateData == null) {
           aggregateData = newData.deepCopy();
@@ -133,7 +139,7 @@ public class LongColumnStatsAggregator extends ColumnStatsAggregator implements
           // TODO: AS - recompute binned histogram here?
         }
       }
-      if (ndvEstimator != null) {
+      if (areAllNDVEstimatorsMergeable && ndvEstimator != null) {
         // if all the ColumnStatisticsObjs contain bitvectors, we do not need to
         // use uniform distribution assumption because we can merge bitvectors
         // to get a good estimation.
@@ -154,14 +160,20 @@ public class LongColumnStatsAggregator extends ColumnStatsAggregator implements
           estimation = (long) (lowerBound + (higherBound - lowerBound) * ndvTuner);
         }
         aggregateData.setNumDVs(estimation);
+      }
 
+      if (areAllHistogramEstimatorsMergeable && histogramEstimator != null) {
+        aggregateData.setHistogram(histogramEstimator.serialize());
+      } else if (histogramEstimator != null) {
+        // here not all histograms were existing/mergeable, we merge what was found
+        aggregateData.setHistogram(histogramEstimator.serialize());
+      } else {
         // TODO: AS - add estimation for histograms
       }
       columnStatisticsData.setLongStats(aggregateData);
     } else {
       // we need extrapolation
       LOG.debug("start extrapolation for {}", colName);
-
       Map<String, Integer> indexMap = new HashMap<>();
       for (int index = 0; index < partNames.size(); index++) {
         indexMap.put(partNames.get(index), index);
@@ -169,7 +181,7 @@ public class LongColumnStatsAggregator extends ColumnStatsAggregator implements
       Map<String, Double> adjustedIndexMap = new HashMap<>();
       Map<String, ColumnStatisticsData> adjustedStatsMap = new HashMap<>();
       // while we scan the css, we also get the densityAvg, lowerbound and
-      // higerbound when useDensityFunctionForNDVEstimation is true.
+      // higherbound when useDensityFunctionForNDVEstimation is true.
       double densityAvgSum = 0.0;
       if (ndvEstimator == null) {
         // if not every partition uses bitvector for ndv, we just fall back to
@@ -253,7 +265,7 @@ public class LongColumnStatsAggregator extends ColumnStatsAggregator implements
       // TODO: AS - add extrapolation for histograms
     }
     LOG.debug(
-        "Ndv estimatation for {} is {} # of partitions requested: {} # of partitions found: {}",
+        "Ndv estimation for {} is {} # of partitions requested: {} # of partitions found: {}",
         colName, columnStatisticsData.getLongStats().getNumDVs(), partNames.size(),
         colStatsWithSourceInfo.size());
     statsObj.setStatsData(columnStatisticsData);
