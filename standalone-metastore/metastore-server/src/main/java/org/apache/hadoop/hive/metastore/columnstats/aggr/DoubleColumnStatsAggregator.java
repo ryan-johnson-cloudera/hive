@@ -57,8 +57,8 @@ public class DoubleColumnStatsAggregator extends ColumnStatsAggregator implement
     boolean doAllPartitionContainStats = partNames.size() == colStatsWithSourceInfo.size();
     NumDistinctValueEstimator ndvEstimator = null;
     HistogramEstimator histogramEstimator = null;
-    boolean isNDVEstimatorMergeable = true;
-    boolean isHistogramEstimatorMergeable = true;
+    boolean areAllNDVEstimatorsMergeable = true;
+    boolean areAllHistogramEstimatorsMergeable = true;
     for (ColStatsObjWithSourceInfo csp : colStatsWithSourceInfo) {
       ColumnStatisticsObj cso = csp.getColStatsObj();
       if (statsObj == null) {
@@ -73,41 +73,41 @@ public class DoubleColumnStatsAggregator extends ColumnStatsAggregator implement
           doubleInspectorFromStats(cso);
       // check if we can merge NDV estimators
       if (doubleColumnStatsData.getNdvEstimator() == null) {
-        isNDVEstimatorMergeable = false;
-      } else if (isNDVEstimatorMergeable) {
+        areAllNDVEstimatorsMergeable = false;
+      } else if (areAllNDVEstimatorsMergeable) {
         NumDistinctValueEstimator estimator = doubleColumnStatsData.getNdvEstimator();
         if (ndvEstimator == null) {
           ndvEstimator = estimator;
         } else {
           if (!ndvEstimator.canMerge(estimator)) {
-            isNDVEstimatorMergeable = false;
+            areAllNDVEstimatorsMergeable = false;
           }
         }
       }
       // check if we can merge histogram estimators
-      if (doubleColumnStatsData.getHistogramEstimator() == null) {
-        isHistogramEstimatorMergeable = false;
-      } else if (isHistogramEstimatorMergeable) {
+      if (areAllHistogramEstimatorsMergeable) {
         HistogramEstimator estimator = doubleColumnStatsData.getHistogramEstimator();
         if (histogramEstimator == null) {
           histogramEstimator = estimator;
         } else {
-          if (!histogramEstimator.canMerge(estimator)) {
-            isHistogramEstimatorMergeable = false;
+          // null histogram can happen when there are only null values
+          if (estimator != null && !histogramEstimator.canMerge(estimator)) {
+            areAllHistogramEstimatorsMergeable = false;
           }
         }
       }
     }
-    if (ndvEstimator != null) {
+    if (areAllNDVEstimatorsMergeable && ndvEstimator != null) {
       ndvEstimator = NumDistinctValueEstimatorFactory
           .getEmptyNumDistinctValueEstimator(ndvEstimator);
     }
-    LOG.debug("all of the bit vectors can merge for {} is {}", colName, ndvEstimator != null);
-    if (histogramEstimator != null) {
+    LOG.debug("all of the bit vectors can merge for {} is {}", colName, areAllNDVEstimatorsMergeable);
+    if (areAllHistogramEstimatorsMergeable && histogramEstimator != null) {
       histogramEstimator = HistogramEstimatorFactory
           .getEmptyHistogramEstimator(histogramEstimator);
     }
-    LOG.debug("all histograms can merge for {} is {}", colName, histogramEstimator != null);
+    LOG.debug("all histograms can merge for {} is {}", colName, areAllHistogramEstimatorsMergeable);
+
     ColumnStatisticsData columnStatisticsData = new ColumnStatisticsData();
     if (doAllPartitionContainStats || colStatsWithSourceInfo.size() < 2) {
       DoubleColumnStatsDataInspector aggregateData = null;
@@ -120,10 +120,11 @@ public class DoubleColumnStatsAggregator extends ColumnStatsAggregator implement
         lowerBound = Math.max(lowerBound, newData.getNumDVs());
         higherBound += newData.getNumDVs();
         densityAvgSum += (newData.getHighValue() - newData.getLowValue()) / newData.getNumDVs();
-        if (ndvEstimator != null) {
+        if (areAllNDVEstimatorsMergeable && ndvEstimator != null) {
           ndvEstimator.mergeEstimators(newData.getNdvEstimator());
         }
-        if (histogramEstimator != null) {
+        if (areAllHistogramEstimatorsMergeable
+            && histogramEstimator != null && newData.getHistogramEstimator() != null) {
           histogramEstimator.mergeEstimators(newData.getHistogramEstimator());
         }
         if (aggregateData == null) {
@@ -138,7 +139,7 @@ public class DoubleColumnStatsAggregator extends ColumnStatsAggregator implement
           // TODO: AS - recompute binned histogram here?
         }
       }
-      if (ndvEstimator != null) {
+      if (areAllNDVEstimatorsMergeable && ndvEstimator != null) {
         // if all the ColumnStatisticsObjs contain bitvectors, we do not need to
         // use uniform distribution assumption because we can merge bitvectors
         // to get a good estimation.
@@ -159,7 +160,14 @@ public class DoubleColumnStatsAggregator extends ColumnStatsAggregator implement
           estimation = (long) (lowerBound + (higherBound - lowerBound) * ndvTuner);
         }
         aggregateData.setNumDVs(estimation);
+      }
 
+      if (areAllHistogramEstimatorsMergeable && histogramEstimator != null) {
+        aggregateData.setHistogram(histogramEstimator.serialize());
+      } else if (histogramEstimator != null) {
+        // here not all histograms were existing/mergeable, we merge what was found
+        aggregateData.setHistogram(histogramEstimator.serialize());
+      } else {
         // TODO: AS - add estimation for histograms
       }
       columnStatisticsData.setDoubleStats(aggregateData);
