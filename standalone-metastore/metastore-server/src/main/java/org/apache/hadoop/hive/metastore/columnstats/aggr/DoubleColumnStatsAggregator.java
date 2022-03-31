@@ -104,7 +104,7 @@ public class DoubleColumnStatsAggregator extends ColumnStatsAggregator implement
     LOG.debug("all of the bit vectors can merge for {} is {}", colName, areAllNDVEstimatorsMergeable);
     if (areAllHistogramEstimatorsMergeable && histogramEstimator != null) {
       histogramEstimator = HistogramEstimatorFactory
-          .getEmptyHistogramEstimator(histogramEstimator);
+          .getEmptyHistogramEstimator(histogramEstimator.getSketch().getK());
     }
     LOG.debug("all histograms can merge for {} is {}", colName, areAllHistogramEstimatorsMergeable);
 
@@ -165,11 +165,10 @@ public class DoubleColumnStatsAggregator extends ColumnStatsAggregator implement
       if (areAllHistogramEstimatorsMergeable && histogramEstimator != null) {
         aggregateData.setHistogram(histogramEstimator.serialize());
       } else if (histogramEstimator != null) {
-        // here not all histograms were existing/mergeable, we merge what was found
+        // here not all histograms were existing/mergeable, we merged what was found
         aggregateData.setHistogram(histogramEstimator.serialize());
-      } else {
-        // TODO: AS - add estimation for histograms
       }
+
       columnStatisticsData.setDoubleStats(aggregateData);
     } else {
       // we need extrapolation
