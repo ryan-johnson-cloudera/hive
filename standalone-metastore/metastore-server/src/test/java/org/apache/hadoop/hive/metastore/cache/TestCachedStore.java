@@ -30,6 +30,8 @@ import java.util.concurrent.ThreadFactory;
 
 import org.apache.datasketches.kll.KllFloatsSketch;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.common.histogram.HistogramEstimator;
+import org.apache.hadoop.hive.common.histogram.kll.KllUtils;
 import org.apache.hadoop.hive.common.ndv.hll.HyperLogLog;
 import org.apache.hadoop.hive.metastore.Deadline;
 import org.apache.hadoop.hive.metastore.HMSHandler;
@@ -1212,22 +1214,37 @@ import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
     aggrPartVals.add("1");
     aggrPartVals.add("2");
 
-    AggrStats aggrStats = cachedStore.get_aggr_stats_for(DEFAULT_CATALOG_NAME, dbName, tblName, aggrPartVals, colNames, CacheUtils.HIVE_ENGINE);
+    // we do not check HLL here since only updated NDV is provided for aggregated stats,
+    // merged HLL is computed but discarded by *ColumnStatsAggregator classes
+    final String expectedKll = "05010F00C80008000700000000000000C8000100C10000000000803F0000A040"
+        + "0000004000004040000080400000A0400000803F0000004000004040";
+
+    AggrStats aggrStats = cachedStore.get_aggr_stats_for(
+        DEFAULT_CATALOG_NAME, dbName, tblName, aggrPartVals, colNames, CacheUtils.HIVE_ENGINE);
     LongColumnStatsData longColumnStatsData = aggrStats.getColStats().get(0).getStatsData().getLongStats();
     Assert.assertEquals(100, longColumnStatsData.getNumNulls());
     Assert.assertEquals(5, longColumnStatsData.getNumDVs());
+    assertKll(expectedKll, longColumnStatsData.getHistogram());
 
-    aggrStats = cachedStore.get_aggr_stats_for(DEFAULT_CATALOG_NAME, dbName, tblName, aggrPartVals, colNames, CacheUtils.HIVE_ENGINE);
+    aggrStats = cachedStore.get_aggr_stats_for(
+        DEFAULT_CATALOG_NAME, dbName, tblName, aggrPartVals, colNames, CacheUtils.HIVE_ENGINE);
     longColumnStatsData = aggrStats.getColStats().get(0).getStatsData().getLongStats();
     Assert.assertEquals(100, longColumnStatsData.getNumNulls());
     Assert.assertEquals(5, longColumnStatsData.getNumDVs());
-    Assert.assertArrayEquals(
-        DatatypeConverter.parseHexBinary("484C4CE00303C5F3BE48BCBBAC62C0D2F48E03"),
-        longColumnStatsData.getBitVectors());
-    Assert.assertArrayEquals(DatatypeConverter.parseHexBinary(
-        "05010F00C80008000300000000000000C8000100C50000000000803F0000404000004040000000400000803F"),
-        longColumnStatsData.getHistogram());
+    assertKll(expectedKll, longColumnStatsData.getHistogram());
+
     cachedStore.shutdown();
+  }
+
+  @SuppressWarnings("SameParameterValue")
+  private static void assertKll(String expectedSerializedString, byte[] actualSerialized) {
+    byte[] expectedSerialized = DatatypeConverter.parseHexBinary(expectedSerializedString);
+    HistogramEstimator expected = KllUtils.deserializeKLL(expectedSerialized);
+    HistogramEstimator actual = KllUtils.deserializeKLL(actualSerialized);
+    String msg = "Expected serialized KLL " + expectedSerializedString
+        + " does not match aggregated one " + DatatypeConverter.printHexBinary(actualSerialized)
+        + "; their respective info are:" + expected.getSketch() + actual.getSketch();
+    Assert.assertArrayEquals(msg, expectedSerialized, actualSerialized);
   }
 
   @Test public void testMultiThreadedSharedCacheOps() throws Exception {
