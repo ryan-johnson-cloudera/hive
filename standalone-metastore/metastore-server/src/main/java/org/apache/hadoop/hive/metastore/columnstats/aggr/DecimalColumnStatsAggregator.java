@@ -100,13 +100,11 @@ public class DecimalColumnStatsAggregator extends ColumnStatsAggregator implemen
       }
     }
     if (areAllNDVEstimatorsMergeable && ndvEstimator != null) {
-      ndvEstimator = NumDistinctValueEstimatorFactory
-          .getEmptyNumDistinctValueEstimator(ndvEstimator);
+      ndvEstimator = NumDistinctValueEstimatorFactory.getEmptyNumDistinctValueEstimator(ndvEstimator);
     }
     LOG.debug("all of the bit vectors can merge for {} is {}", colName, areAllNDVEstimatorsMergeable);
     if (areAllHistogramEstimatorsMergeable && histogramEstimator != null) {
-      histogramEstimator = HistogramEstimatorFactory
-          .getEmptyHistogramEstimator(histogramEstimator.getSketch().getK());
+      histogramEstimator = HistogramEstimatorFactory.getEmptyHistogramEstimator(histogramEstimator);
     }
     LOG.debug("all histograms can merge for {} is {}", colName, areAllHistogramEstimatorsMergeable);
 
