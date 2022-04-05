@@ -19,6 +19,7 @@ package org.apache.hadoop.hive.common.histogram;
 
 import org.apache.datasketches.kll.KllFloatsSketch;
 import org.apache.hadoop.hive.common.histogram.kll.KllUtils;
+import org.apache.hadoop.hive.common.ndv.hll.KLLBinnedHistogram;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.ql.util.JavaDataModel;
 
@@ -81,9 +82,13 @@ public class KllHistogramEstimator implements HistogramEstimator {
     kll.merge(((KllHistogramEstimator) o).kll);
   }
 
-  @Override public long computeHistogram() {
+  @Override public KLLBinnedHistogram computeHistogram() {
     // TODO: AS - plug binned histogram class here, and change return type too
-    return 0;
+    // Changed return type in HistogramEstimator as well
+    KLLBinnedHistogram histogram = new KLLBinnedHistogram(200, kll);
+    histogram.computeHistogram(-1);
+    return histogram;
+    // END
   }
 
   @Override public int lengthFor(JavaDataModel model) {

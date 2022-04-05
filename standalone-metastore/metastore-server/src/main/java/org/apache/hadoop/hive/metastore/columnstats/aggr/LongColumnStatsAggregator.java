@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.hive.common.histogram.HistogramEstimator;
+import org.apache.hadoop.hive.common.ndv.hll.KLLBinnedHistogram;
 import org.apache.hadoop.hive.common.histogram.HistogramEstimatorFactory;
 import org.apache.hadoop.hive.common.ndv.NumDistinctValueEstimator;
 import org.apache.hadoop.hive.common.ndv.NumDistinctValueEstimatorFactory;
@@ -134,7 +135,13 @@ public class LongColumnStatsAggregator extends ColumnStatsAggregator implements
 
           aggregateData.setNumNulls(aggregateData.getNumNulls() + newData.getNumNulls());
           aggregateData.setNumDVs(Math.max(aggregateData.getNumDVs(), newData.getNumDVs()));
+
           // TODO: AS - recompute binned histogram here?
+          // All partitions are being merged in this for loop
+          // The histogram estimators are being merged with merger
+          //KLLBinnedHistogram newHistogram = aggregateData.getHistogramEstimator().computeHistogram();
+          //aggregateData.setHistogram(newHistogram); need serialized newHistogram
+          // END
         }
       }
       if (areAllNDVEstimatorsMergeable && ndvEstimator != null) {
@@ -160,11 +167,13 @@ public class LongColumnStatsAggregator extends ColumnStatsAggregator implements
         aggregateData.setNumDVs(estimation);
       }
 
+
       if (areAllHistogramEstimatorsMergeable && histogramEstimator != null) {
         aggregateData.setHistogram(histogramEstimator.serialize());
       } else if (histogramEstimator != null) {
         // here not all histograms were existing/mergeable, we merge what was found
         aggregateData.setHistogram(histogramEstimator.serialize());
+
       }
 
       columnStatisticsData.setLongStats(aggregateData);
