@@ -36,6 +36,13 @@ public class KLLBinnedHistogram {
     this.lenStream = 0;
   }
 
+  public KLLBinnedHistogram(int accuracy, KllFloatsSketch sketch) {
+    this.sketch = sketch;
+    this.accuracy = accuracy;
+    this.sketch = new KllFloatsSketch(this.accuracy);
+    this.lenStream = 0;
+  }
+
   public void put(float value) {
     sketch.update(value);
     lenStream = sketch.getN();
