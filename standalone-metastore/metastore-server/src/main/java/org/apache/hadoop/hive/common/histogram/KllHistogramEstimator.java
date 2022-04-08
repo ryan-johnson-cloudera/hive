@@ -86,7 +86,7 @@ public class KllHistogramEstimator implements HistogramEstimator {
     // TODO: AS - plug binned histogram class here, and change return type too
     // Changed return type in HistogramEstimator as well
     KLLBinnedHistogram histogram = new KLLBinnedHistogram(200, kll);
-    histogram.computeHistogram(-1);
+    histogram.computeHistogram(20);
     return histogram;
     // END
   }

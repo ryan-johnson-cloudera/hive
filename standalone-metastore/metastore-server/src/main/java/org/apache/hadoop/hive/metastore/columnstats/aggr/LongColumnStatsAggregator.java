@@ -137,11 +137,7 @@ public class LongColumnStatsAggregator extends ColumnStatsAggregator implements
           aggregateData.setNumDVs(Math.max(aggregateData.getNumDVs(), newData.getNumDVs()));
 
           // TODO: AS - recompute binned histogram here?
-          // All partitions are being merged in this for loop
-          // The histogram estimators are being merged with merger
-          //KLLBinnedHistogram newHistogram = aggregateData.getHistogramEstimator().computeHistogram();
-          //aggregateData.setHistogram(newHistogram); need serialized newHistogram
-          // END
+
         }
       }
       if (areAllNDVEstimatorsMergeable && ndvEstimator != null) {

@@ -26,6 +26,8 @@ import org.apache.datasketches.memory.Memory;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.common.histogram.KllHistogramEstimator;
+import org.apache.hadoop.hive.common.ndv.hll.KLLBinnedHistogram;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.common.type.Timestamp;
 import org.apache.hadoop.hive.metastore.api.BinaryColumnStatsData;
@@ -216,7 +218,19 @@ public final class ShowUtils {
     if (buffer == null || buffer.length == 0) {
       return "";
     }
-    return KllFloatsSketch.heapify(Memory.wrap(buffer)).toString();
+    KllFloatsSketch kll = KllFloatsSketch.heapify(Memory.wrap(buffer));
+    KllHistogramEstimator histogramEstimator = new KllHistogramEstimator(kll);
+    KLLBinnedHistogram binnedHistogram = histogramEstimator.computeHistogram();
+    double[] percentile = new double[binnedHistogram.buckets().length];
+    int numBins = binnedHistogram.buckets().length - 1;
+    double sum = 0.0;
+    for (int i = 0; i < binnedHistogram.buckets().length; i++) {
+      percentile[i] = sum;
+      sum += 100 / numBins;
+    }
+
+    return "Histogram Bins: " + Arrays.toString(binnedHistogram.buckets()) + "\nPercentile: " + Arrays.toString(percentile);
+    //return KllFloatsSketch.heapify(Memory.wrap(buffer)).toString();
   }
 
   private static String convertToString(byte[] buffer) {
@@ -412,5 +426,16 @@ public final class ShowUtils {
       }
       table = newTable;
     }
+  }
+
+  public static void main(String[] args) {
+    KllHistogramEstimator test = new KllHistogramEstimator(200);
+    for(int i = 0; i < 1000; i ++) {
+      test.addToEstimator(i);
+    }
+    for(int i = 0; i < 1000; i ++) {
+      test.addToEstimator(500);
+    }
+    System.out.println(convertHistogram(test.serialize()));
   }
 }

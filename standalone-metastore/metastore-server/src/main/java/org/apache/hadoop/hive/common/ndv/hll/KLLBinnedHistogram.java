@@ -40,8 +40,7 @@ public class KLLBinnedHistogram {
   public KLLBinnedHistogram(int accuracy, KllFloatsSketch sketch) {
     this.sketch = sketch;
     this.accuracy = accuracy;
-    this.sketch = new KllFloatsSketch(this.accuracy);
-    this.lenStream = 0;
+    this.lenStream = sketch.getN();
   }
 
 
@@ -53,8 +52,9 @@ public class KLLBinnedHistogram {
   public void computeHistogram(int numBins) {
 
     if (numBins == -1) {
-      numBins = (int)Math.ceil((sketch.getMaxValue() - sketch.getMinValue()) /
-          (2 * (sketch.getQuantile(0.75) - sketch.getQuantile(0.25)) / Math. cbrt(lenStream)));
+      double binWidth = (2 * (sketch.getQuantile(0.75) - sketch.getQuantile(0.25)) / Math. cbrt(lenStream));
+      numBins = (int)Math.ceil((sketch.getMaxValue() - sketch.getMinValue()) / binWidth);
+      numBins = Math.max(numBins, 1);
     }
 
 
@@ -148,5 +148,9 @@ public class KLLBinnedHistogram {
 
   public long lenStream() {
     return lenStream;
+  }
+
+  public double[] buckets() {
+    return buckets;
   }
 }
