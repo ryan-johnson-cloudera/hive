@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 import org.apache.hadoop.hive.common.histogram.HistogramEstimator;
 import org.apache.hadoop.hive.common.ndv.hll.KLLBinnedHistogram;
@@ -265,6 +266,77 @@ public class LongColumnStatsAggregator extends ColumnStatsAggregator implements
           adjustedIndexMap, adjustedStatsMap, densityAvgSum / adjustedStatsMap.size());
 
       // TODO: AS - add extrapolation for histograms
+      // Ryan's edit starts here
+      // Create an arrayList for all of the merged histogram estimators
+      ArrayList<HistogramEstimator> mergedHistogramEstimators = new ArrayList<>();
+      // Create a deep copy of colStatsWithSourceInfo, excluding the first element
+      ArrayList<ColStatsObjWithSourceInfo> colStatsWithSourceInfoDeepCopy = new ArrayList<>();
+      for (int i = 1; i < colStatsWithSourceInfo.size(); i ++) {
+        colStatsWithSourceInfoDeepCopy.add(colStatsWithSourceInfo.get(i));
+      }
+      // set firstHistogramEstimator to that first element of colStatsWithSourceInfo that was excluded from the deep copy
+      ColumnStatisticsObj cso = colStatsWithSourceInfo.get(0).getColStatsObj();
+      LongColumnStatsDataInspector firstNewData = longInspectorFromStats(cso);
+      HistogramEstimator firstHistogramEstimator = firstNewData.getHistogramEstimator();
+      int index = 0;
+      while (colStatsWithSourceInfoDeepCopy.size() != 0) {
+        // If the index ever goes over colStatsWithSourceInfoDeepCopy.size(), then this means that we have gone through all the elements and need
+        // to add the merged histogram to the mergedHistogramEstimators arraylist and then set index = 0, to go over the
+        // elements we skipped (that were not mergeable)
+        if (index >= colStatsWithSourceInfoDeepCopy.size()) {
+          index = 0;
+          mergedHistogramEstimators.add(firstHistogramEstimator);
+          cso = colStatsWithSourceInfoDeepCopy.get(0).getColStatsObj();
+          firstNewData = longInspectorFromStats(cso);
+          firstHistogramEstimator = firstNewData.getHistogramEstimator();
+          colStatsWithSourceInfoDeepCopy.remove(0);
+        }
+        if (colStatsWithSourceInfoDeepCopy.size() == 0) {
+          break;
+        }
+        // get the next histogramEstimator in the list
+        ColumnStatisticsObj csoCopy = colStatsWithSourceInfoDeepCopy.get(index).getColStatsObj();
+        LongColumnStatsDataInspector newData = longInspectorFromStats(csoCopy);
+        HistogramEstimator newHistogramEstimator = newData.getHistogramEstimator();
+        // check to see if it is mergeable, if it is, then merge and remove it from colStatsWithSourceInfoDeepCopy
+        // if it is not, then skip this histogramEstimator by incrementing index
+        if (firstHistogramEstimator.canMerge(newHistogramEstimator)) {
+          firstHistogramEstimator.mergeEstimators(newHistogramEstimator);
+          colStatsWithSourceInfoDeepCopy.remove(index);
+        } else {
+          index ++;
+        }
+      }
+      // add the last histogram to mergedHistogramEstimators
+      mergedHistogramEstimators.add(firstHistogramEstimator);
+
+      // find the histogram with largest N
+      long biggestN = -1;
+      int biggestIndex = -1;
+      for (int i = 0; i < mergedHistogramEstimators.size(); i ++) {
+        HistogramEstimator hist = mergedHistogramEstimators.get(i);
+        if (hist != null && hist.getSketch().getN() > biggestN) {
+          biggestN = hist.getSketch().getN();
+          biggestIndex = i;
+        }
+      }
+      HistogramEstimator largestHistogramEstimator = null;
+      if (biggestIndex != -1) {
+        largestHistogramEstimator = mergedHistogramEstimators.get(biggestIndex);
+      }
+      // set the histogram with largest N
+      // Only add histogram if N > a certain value (this has not been done yet)
+      if (largestHistogramEstimator != null) {
+        LongColumnStatsData extrapolateLongData = columnStatisticsData.getLongStats();
+        extrapolateLongData.setHistogram(largestHistogramEstimator.serialize());
+        columnStatisticsData.setLongStats(extrapolateLongData);
+      }
+      //Ryan's edit ends here
+
+
+
+
+
     }
     LOG.debug(
         "Ndv estimation for {} is {} # of partitions requested: {} # of partitions found: {}",
